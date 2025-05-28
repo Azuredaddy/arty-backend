@@ -1,26 +1,29 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from fastapi.responses import JSONResponse
+
+# Make sure these files are present in the same folder:
 from models import User, Base
 from database import engine, SessionLocal
 
-# Create DB tables
+# Create the database tables
 Base.metadata.create_all(bind=engine)
 
+# Initialize the FastAPI app
 app = FastAPI()
 
-# Enable CORS
+# Enable CORS for frontend communication
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],  # or restrict to your frontend domain
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Database session dependency
+# Dependency to get DB session
 def get_db():
     db = SessionLocal()
     try:
@@ -28,38 +31,5 @@ def get_db():
     finally:
         db.close()
 
-# Request model
-class UserCreate(BaseModel):
-    email: str
-    tenant_id: str
-
-# POST endpoint to add a user
-@app.post("/api/add-user")
-def add_user(user: UserCreate):
-    db = SessionLocal()
-    existing = db.query(User).filter_by(email=user.email).first()
-    if existing:
-        db.close()
-        raise HTTPException(status_code=400, detail="User already exists")
-    db_user = User(email=user.email, tenant_id=user.tenant_id)
-    db.add(db_user)
-    db.commit()
-    db.refresh(db_user)
-    db.close()
-    return {"message": "User added", "tenant_id": db_user.tenant_id}
-
-# GET endpoint to list all tenants/users
-@app.get("/api/tenants")
-def list_tenants():
-    db = SessionLocal()
-    users = db.query(User).all()
-    result = [{"email": u.email, "tenant_id": u.tenant_id} for u in users]
-    db.close()
-    return result
-
-# Default route
-@app.get("/")
-def root():
-    return {"status": "Arty backend is live"}
 
 
